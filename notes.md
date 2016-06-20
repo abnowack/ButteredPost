@@ -26,14 +26,37 @@ Desired features:
 [x] - Also copy over any other files (images, etc.)
 
 ## Intermediate
-[ ] - HTML template insertion
-[ ] - MathJax support
+[x] - HTML template insertion
+[x] - MathJax support
 [ ] - Checklists (create a Markdown extension)
 [ ] - Syntax Highlighting
-[ ] - URL linking
 
 ## Advanced
 [ ] - Emoji
 [ ] - Github pages integration
-[ ] - URL linking
-[ ] - Various Regex fixes for things like & -> %amp; correctly in html
+[x] - URL linking
+        Markdown is supposed to do this automatically
+[x] - Various Regex fixes for things like & -> %amp; correctly in html
+        Markdown is supposed to do this automatically
+[ ] - Use a local MathJax installation
+        
+        
+What Poole does
+
+Pass theme to init, pages.html is main template
+
+Contains css, header in file, all content goes in __content__ key
+go through markdown files using os.walk and create a Page class
+run hook preconvert functions, dont appear to be any defined
+
+read template file as default_template unless template is in page class instance, then set that to template,
+pages were already sorted by the key `sval`
+
+gets python statements to run
+runs python states by performing repl_exec over all python statements and replacing the contents with it
+
+feeds output of this to markdown.Markdown converter, stored in page.html attribute
+
+run postconvert hooks, none defined
+
+loop over pages, eval repls and replace, write html files
