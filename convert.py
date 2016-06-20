@@ -85,11 +85,12 @@ class MarkdownConverter(markdown.Markdown):
             markdown_str = input
 
         html_str = self.convert(markdown_str)
+        meta = self.Meta.copy()
         self.reset()
 
-        return html_str
+        return html_str, meta
 
-    def convert_html(self, html_body):
+    def convert_html(self, html_body, local_vars=None):
         """ Parse html by adding meta attributes if present """
 
         # change to use template, parse html using HTMLParser
@@ -109,7 +110,10 @@ class MarkdownConverter(markdown.Markdown):
         pytags = page_soup.find_all('pyx')
         for py in pytags:
             with stdout_io() as result:
-                exec py.text
+                if local_vars is not None:
+                    exec(py.text, local_vars)
+                else:
+                    exec py.text
             eval_str = result.getvalue()
             py.string = eval_str
             print py.text, eval_str
@@ -133,13 +137,17 @@ class MarkdownConverter(markdown.Markdown):
             output = input_name
 
         html_raw = self.convert_markdown(input)
-        html = self.convert_html(html_raw)
+        # html = self.convert_html(html_raw)
 
         with open(output, 'w') as html_file:
-            html_file.write(html)
+            html_file.write(html_raw)
+
+        return output
 
     def parse_to_html(self, input_root_directory='input', output_root_directory='output'):
-        output_files = []
+        """ Find all files which have been rendered to html, return list of files for html processing """
+
+        output_files = {'url': [], 'title': []}
         for root, dirs, files in os.walk(input_root_directory):
             split_path = root.split(os.path.sep)
             root_subdir = ''
@@ -158,14 +166,14 @@ class MarkdownConverter(markdown.Markdown):
                         os.makedirs(output_dir)
 
                     output_path = os.path.join(output_dir, name + '.html')
-                    self.parse_file(input_path, output_path)
+                    outfile = self.parse_file(input_path, output_path)
+                    output_files.append(outfile)
 
-                    output_files.append(output_path)
                 elif extension in ['.ipynb']:
                     # Convert jupyter notebook to markdown and convert, copying the images as well
                     (md_body, resources) = self.nb_md_converter.from_filename(os.path.join(root, file))
                     html_body = self.convert_markdown(md_body, is_file=False)
-                    html = self.convert_html(html_body)
+                    html = self.convert_html(html_body, {})
 
                     # check if directory exists first
                     if not os.path.exists(output_dir):
@@ -195,18 +203,23 @@ class MarkdownConverter(markdown.Markdown):
 
         return output_files
 
+
     def render_html(self, files):
-        pass
-
-def build():
-    mdconv = MarkdownConverter()
-    pages = mdconv.parse()
-
-
+        """ Define all global variables that are accessible across all pages. """
+        local_vars = {'files': files}
+        for file in files:
+            print file
+            with open(file, 'r+') as html_page:
+                html_body = html_page.read()
+                html = self.convert_html(html_body, local_vars)
+                html_page.seek(0)
+                html_page.write(html)
+                html_page.truncate()
 
 if __name__ == '__main__':
     # mock variables for now
 
     mdconv = MarkdownConverter()
-    mdconv.parse()
+    files = mdconv.parse_to_html()
+    mdconv.render_html(files)
     # print mdconv.Meta

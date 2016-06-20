@@ -1,3 +1,4 @@
 <pyx>
-2+2
+for file in files:
+    print file
 </pyx>

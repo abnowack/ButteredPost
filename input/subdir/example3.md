@@ -1,4 +1,4 @@
-Title:   Test Title
+Title:   Example 3
 Summary: summary here
 Authors: Waylan Limberg
          John Doe
