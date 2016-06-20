@@ -28,18 +28,39 @@ Desired features:
 ## Intermediate
 [x] - HTML template insertion
 [x] - MathJax support
-[ ] - Checklists (create a Markdown extension)
-[ ] - Syntax Highlighting
+[x] - Checklists (create a Markdown extension) , almost working, doesn't display right, need to fix it
+        https://github.com/facelessuser/pymdown-extensions/blob/master/pymdownx/tasklist.py
+        use the above to get it right
+        Actually just included some CSS, it works as long as you don't do two tasks lists sequentially
+[x] - Syntax Highlighting
+        Supported using the builtin CodeHilite extension and the Fenced Code Blocks extensions for github style markup
+[ ] - Commandline arguments
 
 ## Advanced
-[ ] - Emoji
 [ ] - Github pages integration
 [x] - URL linking
         Markdown is supposed to do this automatically
 [x] - Various Regex fixes for things like & -> %amp; correctly in html
         Markdown is supposed to do this automatically
-[ ] - Use a local MathJax installation
-        
+[1] - Use a local MathJax installation
+[ ] - Automatic Webserve rebuild on detect changes
+        Only update files if succeeded?
+[x] - Automatically convert jupyter notebooks into markdown and copy, convert
+
+## Roadmap
+[ ] - Generate an index page listing all posts
+[ ] - Tagging Support, show all posts matching tag
+[ ] - Menu bar
+
+## Optional
+[ ] - Emoji
+
+Commands:
+--build
+--serve
+--publish
+--run (build, publish on success), default command
+    (if github not present, pull github, run output, on success commit w/ date timestamp, push)
         
 What Poole does
 
