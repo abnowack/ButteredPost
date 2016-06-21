@@ -165,9 +165,16 @@ def build(input_directory, template_filepath, output_root_directory='output'):
         # exec all <pyx></pyx> tags
         pyxtags = template_soup.find_all('pyx')
         for pyx in pyxtags:
-            with stdout_io() as result:
-                exec(pyx.text, {'pages': pages, 'page': page})
-            pyx.string = result.getvalue()
+            sys.stdout = StringIO.StringIO()
+            exec(pyx.text, {'pages': pages, 'page': page})
+            repl = sys.stdout.getvalue()[:-1]
+            sys.stdout = sys.__stdout__
+            # convert to soup object
+            print repl
+            pyx_soup = BeautifulSoup(repl, 'html.parser')
+            print pyx_soup
+            for content in pyx_soup:
+                pyx.append(content)
             pyx.unwrap()
 
         # write rendered html
