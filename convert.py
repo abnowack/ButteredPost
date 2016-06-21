@@ -96,7 +96,7 @@ class Page(object):
     def read_markdown(self, markdown_filepath):
         with open(markdown_filepath, 'r') as markdown_file:
             self.markdown = markdown_file.read()
-        self.convert_markdown_to_html()
+        # self.convert_markdown_to_html()
 
     def read_jupyter(self, jupyter_filepath):
         (self.markdown, resources) = self.jupyter_converter.from_filename(jupyter_filepath)
@@ -105,7 +105,7 @@ class Page(object):
         for key, value in resources['outputs'].iteritems():
             output_filepath = os.path.join(self.output_directory, key)
             self.additional_files[output_filepath] = value
-        self.convert_markdown_to_html()
+        # self.convert_markdown_to_html()
 
     def convert_markdown_to_html(self):
         self.html = self.md_converter.convert(self.markdown)
@@ -148,6 +148,29 @@ def build(input_directory, template_filepath, output_root_directory='output'):
     # we iterate through pages, creating a full html page from the template file
     # then execute the python blocks within them, and finally write the file
     for page in pages:
+        # execute exec tags, <pyx></pyx>, before doing markdown conversion
+        # find pyx tag
+        s = [item for sublist in [snip.partition('</pyx>') for snip in page.markdown.partition('<pyx>')]
+             for item in sublist if item is not '']
+
+        for i in xrange(1, len(s)):
+            # get exec lines
+            if s[i-1] == '<pyx>' and s[i+1] == '</pyx>':
+                # exec lines
+                exec_str = s[i]
+                sys.stdout = StringIO.StringIO()
+                exec(exec_str, {'pages': pages, 'page': page})
+                # get return value
+                repl = sys.stdout.getvalue()[:-1]
+                sys.stdout = sys.__stdout__
+                print repl
+                # set portion to return value
+                s[i] = repl
+
+        page.markdown = ''.join([i for i in s if i not in ['<pyx>', '</pyx>']])
+
+        page.convert_markdown_to_html()
+
         template_soup = BeautifulSoup(template, 'html.parser')
         page_soup = BeautifulSoup(page.html, 'html.parser')
         insert_page_tag = template_soup.body.find_all('div', {'id': 'post'})[0]
@@ -155,27 +178,27 @@ def build(input_directory, template_filepath, output_root_directory='output'):
         for element in page_soup:
             insert_page_tag.append(element)
 
-        # eval all <py></py> tags
+        # only eval tags, <py></py> are allowed in template files
         pytags = template_soup.find_all('py')
         for py in pytags:
-            eval_str = str(eval(py.text))
+            eval_str = str(eval(py.text, {'pages': pages, 'page': page}))
             py.string = eval_str
             py.unwrap()
 
         # exec all <pyx></pyx> tags
-        pyxtags = template_soup.find_all('pyx')
-        for pyx in pyxtags:
-            sys.stdout = StringIO.StringIO()
-            exec(pyx.text, {'pages': pages, 'page': page})
-            repl = sys.stdout.getvalue()[:-1]
-            sys.stdout = sys.__stdout__
-            # convert to soup object
-            print repl
-            pyx_soup = BeautifulSoup(repl, 'html.parser')
-            print pyx_soup
-            for content in pyx_soup:
-                pyx.append(content)
-            pyx.unwrap()
+        # pyxtags = template_soup.find_all('pyx')
+        # for pyx in pyxtags:
+        #     sys.stdout = StringIO.StringIO()
+        #     exec(pyx.text, {'pages': pages, 'page': page})
+        #     repl = sys.stdout.getvalue()[:-1]
+        #     sys.stdout = sys.__stdout__
+        #     # convert to soup object
+        #     print repl
+        #     pyx_soup = BeautifulSoup(repl, 'html.parser')
+        #     print pyx_soup
+        #     for content in pyx_soup:
+        #         pyx.append(content)
+        #     pyx.unwrap()
 
         # write rendered html
         with open(os.path.join(page.output_directory, page.html_filename), 'w') as output_html:
