@@ -8,6 +8,9 @@ from bs4 import BeautifulSoup
 from nbconvert import MarkdownExporter
 import re
 
+MARKDOWN_FILES = ['.md', '.mdown', '.markdown']
+JUPYTER_FILES = ['.ipynb']
+
 # http://stackoverflow.com/questions/3906232/python-get-the-print-output-in-an-exec-statement
 @contextlib.contextmanager
 def stdout_io(stdout=None):
@@ -64,162 +67,119 @@ class ChecklistPostprocessor(markdown.postprocessors.Postprocessor):
         return '<li class="task-list-item"><input type="checkbox" disabled%s>' % checked
 
 
-class MarkdownConverter(markdown.Markdown):
-    def __init__(self, template='template.html'):
-        extensions = [MetaExtension(), MathJaxExtension(), CodeHiliteExtension(), FencedCodeExtension(),
-                      ChecklistExtension()]
-        super(MarkdownConverter, self).__init__(extensions=extensions)
+class Page(object):
+    def __init__(self, filename, input_directory, output_directory):
+        self.md_converter = markdown.Markdown(
+            extensions=[MetaExtension(), MathJaxExtension(), CodeHiliteExtension(), FencedCodeExtension(),
+                        ChecklistExtension()])
+        self.jupyter_converter = MarkdownExporter()
 
-        with open(template, 'r') as template_file:
-            self.template = template_file.read()
+        self.filename = filename
+        self.input_directory = input_directory
+        self.output_directory = output_directory
+        self.markdown = ''
+        self.html = ''
+        self.info = {}
+        self.additional_files = {}
 
-        self.nb_md_converter = MarkdownExporter()
+        name, extension = os.path.splitext(filename)
+        self.html_filename = name + '.html'
 
-    def convert_markdown(self, input, is_file=True):
-        """ Parse markdown into html string """
-
-        if is_file:
-            with open(input, 'r') as markdown_file:
-                markdown_str = markdown_file.read()
+        input_filename = os.path.join(input_directory, filename)
+        if extension in MARKDOWN_FILES:
+            self.read_markdown(input_filename)
+        elif extension in JUPYTER_FILES:
+            self.read_jupyter(input_filename)
         else:
-            markdown_str = input
+            pass
 
-        html_str = self.convert(markdown_str)
-        meta = self.Meta.copy()
-        self.reset()
+    def read_markdown(self, markdown_filepath):
+        with open(markdown_filepath, 'r') as markdown_file:
+            self.markdown = markdown_file.read()
+        self.convert_markdown_to_html()
 
-        return html_str, meta
+    def read_jupyter(self, jupyter_filepath):
+        (self.markdown, resources) = self.jupyter_converter.from_filename(jupyter_filepath)
 
-    def convert_html(self, html_body, local_vars=None):
-        """ Parse html by adding meta attributes if present """
+        # copy over the other resources
+        for key, value in resources['outputs'].iteritems():
+            output_filepath = os.path.join(self.output_directory, key)
+            self.additional_files[output_filepath] = value
+        self.convert_markdown_to_html()
 
-        # change to use template, parse html using HTMLParser
-        # header_template = "<head><title>{title}</title></head>"
-        # title = self.Meta.get('title', [''])[0]
-        # header_str = header_template.format(title=title)
-        # html = header_str + '\n' + html_body
+    def convert_markdown_to_html(self):
+        self.html = self.md_converter.convert(self.markdown)
+        if hasattr(self.md_converter, 'Meta'):
+            for key, val in self.md_converter.Meta.iteritems():
+                self.info[key] = val
+        self.md_converter.reset()
 
-        page_soup = BeautifulSoup(self.template, 'html.parser')
-        body_soup = BeautifulSoup(html_body, 'html.parser')
-        insert_page_tag = page_soup.body.find_all('div', {'id': 'post'})[0]
 
-        for element in body_soup:
+def build(input_directory, template_filepath, output_root_directory='output'):
+    with open(template_filepath, 'r') as template_file:
+        template = template_file.read()
+
+    pages = []
+
+    # iterate over input tree, creating page objects storing converted html
+    for input_root, input_dirs, input_files in os.walk(input_directory):
+        # create output directory path
+        split_path = input_root.split(os.path.sep)
+        root_subdir = ''
+        if len(split_path) > 1:
+            root_subdir = os.path.join(*split_path[1:])
+        output_directory = os.path.join(output_root_directory, root_subdir)
+
+        # create output directory if not exist
+        if not os.path.exists(output_directory):
+            os.makedirs(output_directory)
+
+        for input_file in input_files:
+            input_filename = os.path.join(input_root, input_file)
+            output_filename = os.path.join(output_directory, input_file)
+            name, extension = os.path.splitext(input_file)
+            if extension in MARKDOWN_FILES + JUPYTER_FILES:
+                pages.append(Page(input_file, input_root, output_directory))
+            else:
+                # copy all other files over
+                copyfile(input_filename, output_filename)
+
+    # now that we have all body html elements, and we previously made the output directory tree
+    # we iterate through pages, creating a full html page from the template file
+    # then execute the python blocks within them, and finally write the file
+    for page in pages:
+        template_soup = BeautifulSoup(template, 'html.parser')
+        page_soup = BeautifulSoup(page.html, 'html.parser')
+        insert_page_tag = template_soup.body.find_all('div', {'id': 'post'})[0]
+
+        for element in page_soup:
             insert_page_tag.append(element)
 
-        # exec all python pyx tags
-        pytags = page_soup.find_all('pyx')
-        for py in pytags:
-            with stdout_io() as result:
-                if local_vars is not None:
-                    exec(py.text, local_vars)
-                else:
-                    exec py.text
-            eval_str = result.getvalue()
-            py.string = eval_str
-            print py.text, eval_str
-            py.unwrap()
-
-        # eval all python py tags
-        pytags = page_soup.find_all('py')
+        # eval all <py></py> tags
+        pytags = template_soup.find_all('py')
         for py in pytags:
             eval_str = str(eval(py.text))
             py.string = eval_str
-            print py.text, eval_str
             py.unwrap()
 
-        return page_soup.prettify()
+        # exec all <pyx></pyx> tags
+        pyxtags = template_soup.find_all('pyx')
+        for pyx in pyxtags:
+            with stdout_io() as result:
+                exec(pyx.text, {'pages': pages, 'page': page})
+            pyx.string = result.getvalue()
+            pyx.unwrap()
 
-    def parse_file(self, input, output=None):
-        """ Full input to output process for single file """
+        # write rendered html
+        with open(os.path.join(page.output_directory, page.html_filename), 'w') as output_html:
+            output_html.write(template_soup.prettify())
 
-        if output is None:
-            input_name, _ = os.path.splitext(input)
-            output = input_name
+        # write additional files created by page
+        for file_name, file_data in page.additional_files.iteritems():
+            output_filename = os.path.join(page.output_directory, file_name)
+            with open(file_name, 'wb') as data_file:
+                data_file.write(file_data)
 
-        html_raw = self.convert_markdown(input)
-        # html = self.convert_html(html_raw)
-
-        with open(output, 'w') as html_file:
-            html_file.write(html_raw)
-
-        return output
-
-    def parse_to_html(self, input_root_directory='input', output_root_directory='output'):
-        """ Find all files which have been rendered to html, return list of files for html processing """
-
-        output_files = {'url': [], 'title': []}
-        for root, dirs, files in os.walk(input_root_directory):
-            split_path = root.split(os.path.sep)
-            root_subdir = ''
-            if len(split_path) > 1:
-                root_subdir = os.path.join(*split_path[1:])
-
-            output_dir = os.path.join(output_root_directory, root_subdir)
-
-            for file in files:
-                name, extension = os.path.splitext(file)
-                if extension in ['.md', '.mdown', '.markdown']:
-                    input_path = os.path.join(root, file)
-
-                    # check if directory exists first
-                    if not os.path.exists(output_dir):
-                        os.makedirs(output_dir)
-
-                    output_path = os.path.join(output_dir, name + '.html')
-                    outfile = self.parse_file(input_path, output_path)
-                    output_files.append(outfile)
-
-                elif extension in ['.ipynb']:
-                    # Convert jupyter notebook to markdown and convert, copying the images as well
-                    (md_body, resources) = self.nb_md_converter.from_filename(os.path.join(root, file))
-                    html_body = self.convert_markdown(md_body, is_file=False)
-                    html = self.convert_html(html_body, {})
-
-                    # check if directory exists first
-                    if not os.path.exists(output_dir):
-                        os.makedirs(output_dir)
-
-                    output_path = os.path.join(output_dir, name + '.html')
-                    with open(output_path, 'w') as html_file:
-                        html_file.write(html)
-
-                    output_files.append(output_path)
-
-                    # copy over the other resources
-                    for res in resources['outputs']:
-                        print res, type(res), type(resources['outputs'][res])
-                        with open(os.path.join(output_dir, res), 'wb') as notebook_resource:
-                            notebook_resource.write(resources['outputs'][res])
-
-                else:
-                    # copy over all other files (assets, images, etc.)
-                    # Could add filter to exclude files if needed
-
-                    # check if directory exists first
-                    if not os.path.exists(output_dir):
-                        os.makedirs(output_dir)
-
-                    copyfile(os.path.join(root, file), os.path.join(output_dir, file))
-
-        return output_files
-
-
-    def render_html(self, files):
-        """ Define all global variables that are accessible across all pages. """
-        local_vars = {'files': files}
-        for file in files:
-            print file
-            with open(file, 'r+') as html_page:
-                html_body = html_page.read()
-                html = self.convert_html(html_body, local_vars)
-                html_page.seek(0)
-                html_page.write(html)
-                html_page.truncate()
 
 if __name__ == '__main__':
-    # mock variables for now
-
-    mdconv = MarkdownConverter()
-    files = mdconv.parse_to_html()
-    mdconv.render_html(files)
-    # print mdconv.Meta
+    build('input', 'template.html', 'output')

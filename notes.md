@@ -16,6 +16,23 @@ Desired features:
  
  All of this should be able to serve locally
  
+ # Refactor
+ 
+ Each page represented in page class, containing local variables. Build function traverses directory tree and creates
+ list of pages, sorted by date.
+ 
+ Markdown parser is separate class, for extending it in the future
+ 
+ Page class(markdown file path):
+    contains markdown, html representations
+    meta data stored in a 'locals' dictionary
+ 
+build function(input directory):
+    create full html file
+    pass list of page attrs, and current page to locals in exec blocks
+    do execution in blocks
+    write to disk
+ 
  # Roadmap
  
 ## Basic
