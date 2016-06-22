@@ -109,6 +109,11 @@ class Page(object):
             url_path = self.html_filename
         return url_path
 
+    @property
+    def date(self):
+        d = self.info.get('date', ['today'])[0]
+        return d
+
     def read_markdown(self, markdown_filepath):
         with open(markdown_filepath, 'r') as markdown_file:
             self.markdown = markdown_file.read()
@@ -215,7 +220,7 @@ def build(input_directory, template_filepath, output_root_directory='output'):
 
         # write rendered html
         with open(os.path.join(page.output_directory, page.html_filename), 'w') as output_html:
-            output_html.write(template_soup.prettify())
+            output_html.write(template_soup.prettify(encoding='utf-8'))
 
         # write additional files created by page
         for file_name, file_data in page.additional_files.iteritems():

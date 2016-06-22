@@ -1,4 +1,5 @@
 Title:   Example 1
+Date: 2015-02-27
 
 # This is a test
 

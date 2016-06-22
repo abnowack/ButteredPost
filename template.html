@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>
-        <py>2+2</py>
+        <py>page.title</py>
     </title>
     <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
@@ -368,6 +368,8 @@
             vertical-align: middle;
         }
 
+        a { text-decoration: none; }
+
         #post {
             font-family: 'Roboto', sans-serif;
             width: 800px;
@@ -377,9 +379,12 @@
 
         #header {
             font-family: 'Roboto', sans-serif;
-            width: 400px;
+            width: 800px;
             margin: 1em auto;
+            padding-bottom: 1em;
             color: #2e3436;
+            border-bottom: solid;
+            border-bottom-width: thin;
         }
 
         #footer {
@@ -394,7 +399,7 @@
 </head>
 <body>
 <div id="header">
-    Aaron Nowack
+    <a href="/index.html">Index</a> &middot; Aaron Nowack
 </div>
 <div id="post">
 </div>
