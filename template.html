@@ -399,14 +399,14 @@
 </head>
 <body>
 <div id="header">
-    <a href="{{ info['root'] }}">Index</a> &middot; Aaron Nowack
+    <a href="{{ info.get('root', '/') }}">Index</a> &middot; {{ info.get('name', '') }}
 </div>
 <div id="post">
     <h1 id="post-title">{{page.title if page.title != 'index' else ''}}</h1>
     <h3 id="post-date">{{page.date.strftime('%B %d, %Y') if page.date is not None else ''}}</h3>
 </div>
 <div id="footer">
-    Created using <a href="https://github.com/abnowack/varlog">ButteredPost</a>
+    Created using <a href="https://github.com/abnowack/ButteredPost">ButteredPost</a>
 </div>
 </body>
 </html>

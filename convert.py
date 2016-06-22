@@ -150,7 +150,7 @@ class Page(object):
         self.md_converter.reset()
 
 
-def build(input_directory, template_filepath, output_root_directory='output'):
+def build(input_directory, output_root_directory='output', template_filepath='template.html', info=None):
     def py_eval(s):
         return eval(s.group(1), {'pages': pages, 'page': page, 'info': info})
 
@@ -165,7 +165,8 @@ def build(input_directory, template_filepath, output_root_directory='output'):
         template = template_file.read()
 
     pages = []
-    info = {'root': '/'}
+    if info is None:
+        info = {'root': '/'}
 
     # iterate over input tree, creating page objects storing converted html
     for input_root, input_dirs, input_files in os.walk(input_directory):
@@ -197,7 +198,7 @@ def build(input_directory, template_filepath, output_root_directory='output'):
         page.markdown = re.sub(r"(<!--%\s*)(.*?\S)(\s*%-->)", py_exec, page.markdown, flags=re.MULTILINE | re.DOTALL)
         page.convert_markdown_to_html()
 
-        page_template = re.sub(r"\{\{(.*)\}\}", py_eval, template)
+        page_template = re.sub(r"\{\{(.*?)\}\}", py_eval, template)
         template_soup = BeautifulSoup(page_template, 'html.parser')
 
         page_soup = BeautifulSoup(page.html, 'html.parser')
@@ -231,5 +232,5 @@ def serve(folder='', port=8000, display=True):
     httpd.serve_forever()
 
 if __name__ == '__main__':
-    build('input', 'template.html', 'output')
-    serve('output')
+    build('example/input', 'example/output', info={'name': 'Aaron Nowack'})
+    serve('example/output')
