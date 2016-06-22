@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>
-        <py>page.title</py>
+        {{page.title}}
     </title>
     <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
@@ -399,9 +399,11 @@
 </head>
 <body>
 <div id="header">
-    <a href="/index.html">Index</a> &middot; Aaron Nowack
+    <a href="{{ info['root'] }}">Index</a> &middot; Aaron Nowack
 </div>
 <div id="post">
+    <h1 id="post-title">{{page.title if page.title != 'index' else ''}}</h1>
+    <h3 id="post-date">{{page.date.strftime('%B %d, %Y') if page.date is not None else ''}}</h3>
 </div>
 <div id="footer">
     Created using <a href="https://github.com/abnowack/varlog">ButteredPost</a>

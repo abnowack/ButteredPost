@@ -8,10 +8,10 @@ Date: 2015-02-27
 
 $\alpha = 2 *i* j $
 
-<pyx>
+<!--%
 a = 2+2
 print a + 6
-</pyx>
+%-->
 
 - [ ] Task 1
 - [ ] Task 2

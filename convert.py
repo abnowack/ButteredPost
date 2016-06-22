@@ -7,6 +7,10 @@ from shutil import copyfile
 from bs4 import BeautifulSoup
 from nbconvert import MarkdownExporter
 import re
+from datetime import datetime
+import SimpleHTTPServer
+import SocketServer
+import webbrowser
 
 MARKDOWN_FILES = ['.md', '.mdown', '.markdown']
 JUPYTER_FILES = ['.ipynb']
@@ -93,6 +97,10 @@ class Page(object):
         else:
             pass
 
+        # do a throwaway markdown conversion to extract the metadata
+        self.convert_markdown_to_html()
+        self.html = ''
+
     @property
     def title(self):
         name, ext = os.path.splitext(self.filename)
@@ -111,8 +119,16 @@ class Page(object):
 
     @property
     def date(self):
-        d = self.info.get('date', ['today'])[0]
-        return d
+        d = self.info.get('date', [''])[0]
+        if d == '':
+            return None
+        for fmt in ('%Y-%m-%d', '%m/%d/%Y', '%B %d, %Y'):
+            try:
+                dtime = datetime.strptime(d, fmt)
+            except ValueError:
+                pass
+            else:
+                return dtime
 
     def read_markdown(self, markdown_filepath):
         with open(markdown_filepath, 'r') as markdown_file:
@@ -126,24 +142,6 @@ class Page(object):
             output_filepath = os.path.join(self.output_directory, key)
             self.additional_files[output_filepath] = value
 
-    def render_python_exec(self, local_vars):
-        s = [item for sublist in
-             [snip.partition('</pyx>') for snip in self.markdown.partition('<pyx>')]
-             for item in sublist if item is not '']
-        for i in xrange(1, len(s)):
-            # get exec lines
-            if s[i-1] == '<pyx>' and s[i+1] == '</pyx>':
-                # exec lines
-                exec_str = s[i]
-                sys.stdout = StringIO.StringIO()
-                exec(exec_str, local_vars)
-                # get return value
-                repl = sys.stdout.getvalue()[:-1]
-                sys.stdout = sys.__stdout__
-                # set portion to return value
-                s[i] = repl
-        self.markdown = ''.join([i for i in s if i not in ['<pyx>', '</pyx>']])
-
     def convert_markdown_to_html(self):
         self.html = self.md_converter.convert(self.markdown)
         if hasattr(self.md_converter, 'Meta'):
@@ -153,10 +151,21 @@ class Page(object):
 
 
 def build(input_directory, template_filepath, output_root_directory='output'):
+    def py_eval(s):
+        return eval(s.group(1), {'pages': pages, 'page': page, 'info': info})
+
+    def py_exec(s):
+        sys.stdout = StringIO.StringIO()
+        exec(s.group(2), {'pages': pages, 'page': page, 'info': info})
+        exec_str = sys.stdout.getvalue()[:-1]
+        sys.stdout = sys.__stdout__
+        return exec_str
+
     with open(template_filepath, 'r') as template_file:
         template = template_file.read()
 
     pages = []
+    info = {'root': '/'}
 
     # iterate over input tree, creating page objects storing converted html
     for input_root, input_dirs, input_files in os.walk(input_directory):
@@ -185,38 +194,18 @@ def build(input_directory, template_filepath, output_root_directory='output'):
     # we iterate through pages, creating a full html page from the template file
     # then execute the python blocks within them, and finally write the file
     for page in pages:
-        page.render_python_exec({'pages': pages, 'page': page})
+        page.markdown = re.sub(r"(<!--%\s*)(.*?\S)(\s*%-->)", py_exec, page.markdown, flags=re.MULTILINE | re.DOTALL)
         page.convert_markdown_to_html()
-        print page.url
 
-        template_soup = BeautifulSoup(template, 'html.parser')
+        page_template = re.sub(r"\{\{(.*)\}\}", py_eval, template)
+        template_soup = BeautifulSoup(page_template, 'html.parser')
+
         page_soup = BeautifulSoup(page.html, 'html.parser')
+
         insert_page_tag = template_soup.body.find_all('div', {'id': 'post'})[0]
 
         for element in page_soup:
             insert_page_tag.append(element)
-
-        # only eval tags, <py></py> are allowed in template files
-        pytags = template_soup.find_all('py')
-        for py in pytags:
-            eval_str = str(eval(py.text, {'pages': pages, 'page': page}))
-            py.string = eval_str
-            py.unwrap()
-
-        # exec all <pyx></pyx> tags
-        # pyxtags = template_soup.find_all('pyx')
-        # for pyx in pyxtags:
-        #     sys.stdout = StringIO.StringIO()
-        #     exec(pyx.text, {'pages': pages, 'page': page})
-        #     repl = sys.stdout.getvalue()[:-1]
-        #     sys.stdout = sys.__stdout__
-        #     # convert to soup object
-        #     print repl
-        #     pyx_soup = BeautifulSoup(repl, 'html.parser')
-        #     print pyx_soup
-        #     for content in pyx_soup:
-        #         pyx.append(content)
-        #     pyx.unwrap()
 
         # write rendered html
         with open(os.path.join(page.output_directory, page.html_filename), 'w') as output_html:
@@ -229,5 +218,18 @@ def build(input_directory, template_filepath, output_root_directory='output'):
                 data_file.write(file_data)
 
 
+def serve(folder='', port=8000, display=True):
+    Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
+    if folder != '':
+        cwdir = os.getcwd()
+        os.chdir(folder)
+        httpd = SocketServer.TCPServer(("", port), Handler)
+    else:
+        httpd = SocketServer.TCPServer(("", port), Handler)
+    if display:
+        webbrowser.open_new_tab('http://localhost:' + str(port))
+    httpd.serve_forever()
+
 if __name__ == '__main__':
     build('input', 'template.html', 'output')
+    serve('output')

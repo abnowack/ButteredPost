@@ -32,6 +32,11 @@ build function(input directory):
     pass list of page attrs, and current page to locals in exec blocks
     do execution in blocks
     write to disk
+
+Get index URL homepage linking correct
+Upload project to github
+ 
+ fuck it, just do the {{ }} and <!--% %--> syntax for python escaping
  
  # Roadmap
  
@@ -65,9 +70,9 @@ build function(input directory):
 [x] - Automatically convert jupyter notebooks into markdown and copy, convert
 
 ## Roadmap
-[ ] - Generate an index page listing all posts
+[x] - Generate an index page listing all posts
 [ ] - Tagging Support, show all posts matching tag
-[ ] - Menu bar
+[x] - Menu bar
 
 ## Optional
 [ ] - Emoji
