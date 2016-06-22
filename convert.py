@@ -93,10 +93,25 @@ class Page(object):
         else:
             pass
 
+    @property
+    def title(self):
+        name, ext = os.path.splitext(self.filename)
+        return self.info.get('title', [name])[0]
+
+    @property
+    def url(self):
+        split_path = self.output_directory.split(os.path.sep)
+        relative_directory = r''
+        if split_path[-1] != '':
+            relative_directory = os.path.join(*split_path[1:])
+            url_path = os.path.join(relative_directory + os.path.sep, self.html_filename)
+        else:
+            url_path = self.html_filename
+        return url_path
+
     def read_markdown(self, markdown_filepath):
         with open(markdown_filepath, 'r') as markdown_file:
             self.markdown = markdown_file.read()
-        # self.convert_markdown_to_html()
 
     def read_jupyter(self, jupyter_filepath):
         (self.markdown, resources) = self.jupyter_converter.from_filename(jupyter_filepath)
@@ -105,7 +120,24 @@ class Page(object):
         for key, value in resources['outputs'].iteritems():
             output_filepath = os.path.join(self.output_directory, key)
             self.additional_files[output_filepath] = value
-        # self.convert_markdown_to_html()
+
+    def render_python_exec(self, local_vars):
+        s = [item for sublist in
+             [snip.partition('</pyx>') for snip in self.markdown.partition('<pyx>')]
+             for item in sublist if item is not '']
+        for i in xrange(1, len(s)):
+            # get exec lines
+            if s[i-1] == '<pyx>' and s[i+1] == '</pyx>':
+                # exec lines
+                exec_str = s[i]
+                sys.stdout = StringIO.StringIO()
+                exec(exec_str, local_vars)
+                # get return value
+                repl = sys.stdout.getvalue()[:-1]
+                sys.stdout = sys.__stdout__
+                # set portion to return value
+                s[i] = repl
+        self.markdown = ''.join([i for i in s if i not in ['<pyx>', '</pyx>']])
 
     def convert_markdown_to_html(self):
         self.html = self.md_converter.convert(self.markdown)
@@ -148,28 +180,9 @@ def build(input_directory, template_filepath, output_root_directory='output'):
     # we iterate through pages, creating a full html page from the template file
     # then execute the python blocks within them, and finally write the file
     for page in pages:
-        # execute exec tags, <pyx></pyx>, before doing markdown conversion
-        # find pyx tag
-        s = [item for sublist in [snip.partition('</pyx>') for snip in page.markdown.partition('<pyx>')]
-             for item in sublist if item is not '']
-
-        for i in xrange(1, len(s)):
-            # get exec lines
-            if s[i-1] == '<pyx>' and s[i+1] == '</pyx>':
-                # exec lines
-                exec_str = s[i]
-                sys.stdout = StringIO.StringIO()
-                exec(exec_str, {'pages': pages, 'page': page})
-                # get return value
-                repl = sys.stdout.getvalue()[:-1]
-                sys.stdout = sys.__stdout__
-                print repl
-                # set portion to return value
-                s[i] = repl
-
-        page.markdown = ''.join([i for i in s if i not in ['<pyx>', '</pyx>']])
-
+        page.render_python_exec({'pages': pages, 'page': page})
         page.convert_markdown_to_html()
+        print page.url
 
         template_soup = BeautifulSoup(template, 'html.parser')
         page_soup = BeautifulSoup(page.html, 'html.parser')

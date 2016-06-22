@@ -1,6 +1,4 @@
-<ul>
 <pyx>
 for page in pages:
-    print '<li>test</li>'
+    print '* **[%s](%s)** - %s' % (page.title, page.url, 'date')
 </pyx>
-</ul>
