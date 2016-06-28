@@ -2,18 +2,16 @@ import markdown
 from markdown.extensions.meta import MetaExtension
 from markdown.extensions.codehilite import CodeHiliteExtension
 from markdown.extensions.fenced_code import FencedCodeExtension
-import os, sys, StringIO, contextlib
+import os, sys, contextlib, re, http.server, webbrowser
+from io import StringIO
 from shutil import copyfile
 from bs4 import BeautifulSoup
 from nbconvert import MarkdownExporter
-import re
 from datetime import datetime
-import SimpleHTTPServer
-import SocketServer
-import webbrowser
 
 MARKDOWN_FILES = ['.md', '.mdown', '.markdown']
 JUPYTER_FILES = ['.ipynb']
+
 
 # http://stackoverflow.com/questions/3906232/python-get-the-print-output-in-an-exec-statement
 @contextlib.contextmanager
@@ -28,7 +26,6 @@ def stdout_io(stdout=None):
 
 # https://github.com/mayoff/python-markdown-mathjax
 class MathJaxPattern(markdown.inlinepatterns.Pattern):
-
     def __init__(self):
         markdown.inlinepatterns.Pattern.__init__(self, r'(?<!\\)(\$\$?)(.+?)\2')
 
@@ -46,10 +43,9 @@ class MathJaxExtension(markdown.Extension):
 
 # https://github.com/FND/markdown-checklist/blob/master/markdown_checklist/extension.py
 class ChecklistExtension(markdown.Extension):
-
     def extendMarkdown(self, md, md_globals):
         md.postprocessors.add('checklist', ChecklistPostprocessor(md),
-                '>raw_html')
+                              '>raw_html')
 
 
 class ChecklistPostprocessor(markdown.postprocessors.Postprocessor):
@@ -138,14 +134,14 @@ class Page(object):
         (self.markdown, resources) = self.jupyter_converter.from_filename(jupyter_filepath)
 
         # copy over the other resources
-        for key, value in resources['outputs'].iteritems():
+        for key, value in resources['outputs'].items():
             output_filepath = os.path.join(self.output_directory, key)
             self.additional_files[output_filepath] = value
 
     def convert_markdown_to_html(self):
         self.html = self.md_converter.convert(self.markdown)
         if hasattr(self.md_converter, 'Meta'):
-            for key, val in self.md_converter.Meta.iteritems():
+            for key, val in self.md_converter.Meta.items():
                 self.info[key] = val
         self.md_converter.reset()
 
@@ -155,7 +151,7 @@ def build(input_directory, output_root_directory='output', template_filepath='te
         return eval(s.group(1), {'pages': pages, 'page': page, 'info': info})
 
     def py_exec(s):
-        sys.stdout = StringIO.StringIO()
+        sys.stdout = StringIO()
         exec(s.group(2), {'pages': pages, 'page': page, 'info': info})
         exec_str = sys.stdout.getvalue()[:-1]
         sys.stdout = sys.__stdout__
@@ -210,26 +206,27 @@ def build(input_directory, output_root_directory='output', template_filepath='te
 
         # write rendered html
         with open(os.path.join(page.output_directory, page.html_filename), 'w') as output_html:
-            output_html.write(template_soup.prettify(encoding='utf-8'))
+            output_html.write(template_soup.prettify())
 
         # write additional files created by page
-        for file_name, file_data in page.additional_files.iteritems():
+        for file_name, file_data in page.additional_files.items():
             output_filename = os.path.join(page.output_directory, file_name)
             with open(file_name, 'wb') as data_file:
                 data_file.write(file_data)
 
 
 def serve(folder='', port=8000, display=True):
-    Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
+    Handler = http.server.SimpleHTTPRequestHandler
     if folder != '':
         cwdir = os.getcwd()
         os.chdir(folder)
-        httpd = SocketServer.TCPServer(("", port), Handler)
+        httpd = http.server.TCPServer(("", port), Handler)
     else:
-        httpd = SocketServer.TCPServer(("", port), Handler)
+        httpd = http.server.TCPServer(("", port), Handler)
     if display:
         webbrowser.open_new_tab('http://localhost:' + str(port))
     httpd.serve_forever()
+
 
 if __name__ == '__main__':
     build('example/input', 'example/output', info={'name': 'Aaron Nowack'})

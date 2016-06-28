@@ -10,7 +10,7 @@ $\alpha = 2 *i* j $
 
 <!--%
 a = 2+2
-print a + 6
+print(a + 6)
 %-->
 
 - [ ] Task 1

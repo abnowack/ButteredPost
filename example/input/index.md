@@ -14,7 +14,7 @@ for page in sorted_pages:
         date_str = ''
         if page.date is not None:
             date_str = page.date.strftime('%B %d, %Y')
-            print '* **[%s](%s)** - %s' % (page.title, page.url, date_str)
+            print('* **[%s](%s)** - %s' % (page.title, page.url, date_str))
         else:
-            print '* **[%s](%s)**' % (page.title, page.url)
+            print('* **[%s](%s)**' % (page.title, page.url))
 %-->
