@@ -4,7 +4,7 @@ from markdown.extensions.codehilite import CodeHiliteExtension
 from markdown.extensions.fenced_code import FencedCodeExtension
 import os, sys, contextlib, re, http.server, webbrowser
 from io import StringIO
-from shutil import copyfile
+from shutil import copyfile, rmtree
 from bs4 import BeautifulSoup
 from nbconvert import MarkdownExporter
 from datetime import datetime
@@ -156,6 +156,11 @@ def build(input_directory, output_root_directory='output', template_filepath='te
         exec_str = sys.stdout.getvalue()[:-1]
         sys.stdout = sys.__stdout__
         return exec_str
+
+    # clear output directory
+    rmtree(output_root_directory, ignore_errors=True)
+    if not os.path.exists(output_root_directory):
+        os.makedirs(output_root_directory)
 
     with open(template_filepath, 'r') as template_file:
         template = template_file.read()
